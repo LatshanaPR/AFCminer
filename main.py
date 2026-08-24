@@ -79,15 +79,15 @@ def attributed_concepts_derivation(maximal_clique):
 # ==========================================
 def extract_attributed_equiconcepts_bitwise(nodes, edges, node_attributes):
     """
-    Fast FCA Equiconcept Extraction using Bitwise Operations
+    FCA-based Lattice Equiconcept Extraction using Bitwise Operations.
+    Finds all formal concepts (X1, X2) where Extent == Intent (Maximal Cliques).
     """
     n = len(nodes)
     node_to_idx = {node: i for i, node in enumerate(nodes)}
     idx_to_node = {i: node for i, node in enumerate(nodes)}
 
-    # 1. Represent Adjacency Matrix as Bit Vectors (Integers)
-    # Each row is an integer where bit 'j' is 1 if (v_i, v_j) in E or i == j
-    adj_bits = [(1 << i) for i in range(n)]  # Initialize with self-loops
+    # 1. Adjacency bitmasks with self-loops
+    adj_bits = [(1 << i) for i in range(n)]
     for u, v in edges:
         if u in node_to_idx and v in node_to_idx:
             u_idx = node_to_idx[u]
@@ -97,50 +97,53 @@ def extract_attributed_equiconcepts_bitwise(nodes, edges, node_attributes):
 
     equiconcepts = []
     processed_extents = set()
-
-    # Full bitmask containing 1s for all nodes
     ALL_NODES_MASK = (1 << n) - 1
 
-    def derive_intent_bit(extent_mask):
-        """Find common neighbors using Bitwise AND across all nodes in extent_mask"""
+    def get_intent(extent_mask):
+        """Derive Intent X^uparrow: common neighbors of all nodes in extent."""
         intent_mask = ALL_NODES_MASK
         for i in range(n):
             if (extent_mask >> i) & 1:
                 intent_mask &= adj_bits[i]
         return intent_mask
 
-    def derive_extent_bit(intent_mask):
-        """Find nodes connected to all nodes in intent_mask using Bitwise AND"""
+    def get_extent(intent_mask):
+        """Derive Extent B^downarrow: nodes adjacent to all attributes in intent."""
         extent_mask = ALL_NODES_MASK
         for i in range(n):
             if (intent_mask >> i) & 1:
                 extent_mask &= adj_bits[i]
         return extent_mask
 
-    # 2. Iterate and Compute Closures using Bitwise Operations
+    # Recursive FCA Lattice exploration (Next-Closure / Depth-first Concept Generation)
+    def explore_concept(current_extent, start_idx):
+        intent = get_intent(current_extent)
+        closed_extent = get_extent(intent)
+
+        # Canonical check to prevent duplicate exploration
+        for j in range(start_idx):
+            if not ((current_extent >> j) & 1) and ((closed_extent >> j) & 1):
+                return
+
+        # Equiconcept check: Extent equals Intent in topological matrix (X1 == X2)
+        if closed_extent == intent and closed_extent not in processed_extents:
+            processed_extents.add(closed_extent)
+            
+            clique_nodes = [idx_to_node[j] for j in range(n) if (closed_extent >> j) & 1]
+            clique_set = set(clique_nodes)
+            b_info = {node: node_attributes[node] for node in clique_nodes}
+            equiconcepts.append((clique_set, b_info))
+
+        # Branch to child concepts in the lattice
+        for j in range(start_idx, n):
+            if not ((closed_extent >> j) & 1):
+                explore_concept(closed_extent | (1 << j), j + 1)
+
+    # Start lattice exploration from each individual node
     for i in range(n):
-        initial_extent_mask = adj_bits[i]
-
-        # Compute closure: (Extent'') via Bitwise AND
-        intent_mask = derive_intent_bit(initial_extent_mask)
-        extent_mask = derive_extent_bit(intent_mask)
-
-        # Equiconcept Check: Extent == Intent (Bitwise Equality)
-        if extent_mask == intent_mask:
-            if extent_mask not in processed_extents:
-                processed_extents.add(extent_mask)
-
-                # Convert bitmask back to node list for AFCMiner
-                clique_nodes = [idx_to_node[j] for j in range(n) if (extent_mask >> j) & 1]
-                clique_set = set(clique_nodes)
-                
-                # Attribute Information B = X1^U
-                b_info = {node: node_attributes[node] for node in clique_nodes}
-                
-                equiconcepts.append((clique_set,b_info))
+        explore_concept(1 << i, i + 1)
 
     return equiconcepts
-
 
 # ==========================================
 # 5. ALGORITHM 1: AFC MINER (MAIN ALGORITHM)
