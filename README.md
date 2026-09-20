@@ -1,24 +1,28 @@
 # AFCminer
 
-## Project Files
-
-- `run_fb.py`: runs the optimized Facebook100 experiment.
-- `optimal_afc.py`: optimized AFCMiner implementation used by `run_fb.py`.
-- `backup_afc.py`: reference AFCMiner implementation and shared fairness helpers.
-- `bk.py`: Bron-Kerbosch baseline used for comparison.
-- `preprocess_fb100.py`: loads and preprocesses Facebook100 `.mat` datasets.
-- `FCA.py`: standalone FCA concept-builder example.
-- `timeline.py`: generates the project timeline outputs.
+Quick project flow:
+- `preprocess_fb100.py`: load and prepare Facebook100 data
+- `experiment_utils.py`: shared graph builder for all experiments
+- `experiment1.py`: first experiment
+- `experiment2.py`: second experiment placeholder
+- `experiment3.py`: third experiment placeholder
+- `bk.py`: Bron-Kerbosch baseline
+- `optimal_afc.py`: optimized AFCMiner
+- `run_fb.py`: quick single-run validation
 
 ## Run
 
-Place the dataset at `facebook100/American75.mat`, then run:
+Place the dataset in `facebook100/American75.mat` and run:
+
+```powershell
+python experimentx.py
+```
+
+Quick validation:
 
 ```powershell
 python run_fb.py
 ```
-
-Run the Bron-Kerbosch comparison with:
 
 ```powershell
 python bk.py
