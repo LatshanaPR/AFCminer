@@ -14,7 +14,7 @@ from collections import Counter
 from time import perf_counter
 from experiment_utils import SUBSET_SIZES, load_top_1500_graph
 from preprocess_fb100 import load_facebook100_data, split_preprocessed_data
-from AFCMiner import AFCMiner
+from optimal import AFCMiner
 from bk import BKMiner
 
 # The paper first describes the attribute distribution before running the
@@ -86,11 +86,12 @@ def run_experiment_1():
         R = combined_data
 
         # 2. Run Bron-Kerbosch baseline (only on SubSet 1 to prevent overload)
-        print("  Running BKMiner...", flush=True)
-        start_time = perf_counter()
-        baseline_afmc = BKMiner(V, node_attribute_set, R)
-        baseline_time_ms = (perf_counter() - start_time) * 1000
-        baseline_count = len(baseline_afmc)
+        if index == 1:
+            print("  Running BKMiner...", flush=True)
+            start_time = perf_counter()
+            baseline_afmc = BKMiner(V, node_attribute_set, R)
+            baseline_time_ms = (perf_counter() - start_time) * 1000
+            baseline_count = len(baseline_afmc)
         
 
         # 3. Run AFCMiner for all subsets

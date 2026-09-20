@@ -1,5 +1,5 @@
 from collections import defaultdict
-from FCA_bitwise import ConceptBuilder
+from FCA import ConceptBuilder
 #the fairness check is done as given in the paper except using B we used the modified adjacency matrix
 #because B is defined differently while explaining and AFCMiner algorithm and here as different 
 #so in program we cant use the same variable for different casses so instead of that we uses modified adjacency matrix
