@@ -8,9 +8,10 @@ nodes, edges, node_attributes = load_facebook100_data(
     mat_filename="American75.mat",  # Smallest campus network in FB100
     folder_name="facebook100",
     max_nodes=250,  # Scale subsets: 250, 500, 750 (like the paper)
-    attribute_type="major",
+    attribute_type="gender",
 )
-
+print(nodes)
+print(edges)
 print(
     f"Successfully Loaded: {len(nodes)} Students, {len(edges)} Friendship"
     " Edges"

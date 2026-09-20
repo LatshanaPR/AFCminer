@@ -58,7 +58,6 @@ def load_facebook100_data(
     subG = G.subgraph(selected_indices).copy()
     nodes = [f"v{i}" for i in subG.nodes()]
     edges = [(f"v{u}", f"v{v}") for u, v in subG.edges()]
-
     # 3. Binning & Mapping logic (Table III & Table VI in paper)
     raw_vals = {}
     for node_idx in subG.nodes():

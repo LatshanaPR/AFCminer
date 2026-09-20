@@ -68,7 +68,7 @@ if __name__ == "__main__":
         mat_filename="American75.mat",
         folder_name="facebook100",
         max_nodes=250,
-        attribute_type="major"
+        attribute_type="gender"
     )
 
     # Ground truth from BK
