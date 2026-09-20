@@ -1,5 +1,5 @@
 import itertools
-from main import fairness_filter, attributed_concepts_derivation, build_formal_context
+from backup_afc import fairness_filter, attributed_concepts_derivation, build_formal_context
 
 # ========================================================
 # BRON-KERBOSCH WITH PIVOTING (Algorithm 4 Baseline)

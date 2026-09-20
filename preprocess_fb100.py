@@ -7,57 +7,79 @@ from collections import Counter
 def load_facebook100_data(
     mat_filename="American75.mat",
     folder_name="facebook100",
-    max_nodes=500,
+    max_nodes=250,
     attribute_type="gender",
     granularity=2  # Number of bins for multivalued categories (2V, 3V, 4V)
 ):
     """
     Loads FB100 network and bins attributes according to paper setups.
     
-    Attribute Types:
-      - 'gender': Binary (Col 1)
-      - 'status': Binary / Multivalued (Col 0: Student vs Other or Undergrad/Grad/Faculty)
-      - 'major': Multivalued (Col 2: Top-K majors vs Others)
-      - 'year': Binary / Multivalued (Col 5: Junior/Senior vs Freshman/Sophomore)
-      - 'dorm': Multivalued (Col 4: Top-K dorms vs Others)
+    Attribute Types:      
+      - 'status': [Undergrad = 1, Other = 2]
+      - 'gender': [Female = 1, Male = 2, Unknown = 0]
+      - 'major': Multivalued (Top-K majors vs Others)
+      - 'second_major': Multivalued (Top-K second majors vs Others)
+      - 'dorm': Multivalued (Top-K dorms vs Others)
+      - 'year': [2006, 2007, 2008, 2009]
+      - 'high_school': Multivalued (Top-K high schools vs Others)
       - 'multidim_gender_year': 2D Attribute (Gender x Year)
+      
     """
     file_path = os.path.join(folder_name, mat_filename)
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Could not find {file_path}")
 
+    #Using scipy library to load the .mat file
+    #Reads a MATLAB (.mat) file and returns a dictionary containing the variables in the file.
     mat_data = scipy.io.loadmat(file_path)
-    adj_matrix = mat_data["A"]
-    local_info = mat_data["local_info"]
 
+    adj_matrix = mat_data["A"]          # Adjacency matrix of the network
+    local_info = mat_data["local_info"] # Node attributes
+
+    # Create a NetworkX graph G from the adjacency matrix
     G = nx.from_scipy_sparse_array(adj_matrix)
+    '''
+        Adjacency matrix:
+                0  1  2
+            0   0  1  0
+            1   1  0  1
+            2   0  1  0
+        NetworkX graph G:
+            G.nodes() = [0, 1, 2]
+            G.edges() = [(0, 1), (1, 2)]
+    '''
 
     # 1. Filter out nodes with completely missing values (0 is missing in FB100)
     valid_nodes = []
     for node in G.nodes():
         # Check validity based on chosen attribute
-        if attribute_type == "gender" and local_info[node, 1] in [1, 2]:
+        if attribute_type == "status" and local_info[node, 0] > 0:
             valid_nodes.append(node)
-        elif attribute_type == "status" and local_info[node, 0] > 0:
-            valid_nodes.append(node)
+        elif attribute_type == "gender" and local_info[node, 1] in [1, 2]:
+                    valid_nodes.append(node)
         elif attribute_type == "major" and local_info[node, 2] > 0:
             valid_nodes.append(node)
-        elif attribute_type == "year" and local_info[node, 5] in [2006, 2007, 2008, 2009]:
-            valid_nodes.append(node)
         elif attribute_type == "dorm" and local_info[node, 4] > 0:
-            valid_nodes.append(node)
+                    valid_nodes.append(node)
+        elif attribute_type == "year" and local_info[node, 5] in [2006, 2007, 2008, 2009]:
+            valid_nodes.append(node)        
         elif attribute_type.startswith("multidim"):
             if local_info[node, 1] in [1, 2] and local_info[node, 5] in [2006, 2007, 2008, 2009]:
-                valid_nodes.append(node)
+                valid_nodes.append(node) 
 
-    # 2. Extract dense subgraph based on node degree
+    # 2. Extract dense subgraph based on node degree (select the top 250 nodes with max degree)
     sub_degree = [(n, G.degree[n]) for n in valid_nodes]
     sorted_nodes = sorted(sub_degree, key=lambda x: x[1], reverse=True)
     selected_indices = [n for n, deg in sorted_nodes[:max_nodes]]
 
+
+    # Smaller graph with selected node is created
+    # Node : [6, 1076, 1547] -> ["v6", "v1076", "v1547"]
+    # Edge : [(6, 1076)] -> [("v6", "v1076")]
     subG = G.subgraph(selected_indices).copy()
     nodes = [f"v{i}" for i in subG.nodes()]
     edges = [(f"v{u}", f"v{v}") for u, v in subG.edges()]
+
 
     # 3. Binning & Mapping logic (Table III & Table VI in paper)
     raw_vals = {}

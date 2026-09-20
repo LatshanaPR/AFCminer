@@ -1,21 +1,26 @@
-# run_fb_experiment.py
-from main import afc_miner
-from optimal import afc_miner_optimal
+from backup_afc import afc_miner
+
+# Optimal afc logic from paper
+from optimal_afc import afc_miner_optimal
 from preprocess_fb100 import load_facebook100_data
 
-# 1. Preprocess Facebook100 network (e.g., Caltech36 or Reed98)
+# 1. Preprocess Facebook100 network (American75) and store the nodes, edges, and node attributes
 nodes, edges, node_attributes = load_facebook100_data(
-    mat_filename="American75.mat",  # Smallest campus network in FB100
+    mat_filename="American75.mat",  # One of the campus network in FB100
     folder_name="facebook100",
     max_nodes=250,  # Scale subsets: 250, 500, 750 (like the paper)
     attribute_type="major",
 )
 
+#Print the number of nodes and edges in the preprocessed dataset
 print(
     f"Successfully Loaded: {len(nodes)} Students, {len(edges)} Friendship"
     " Edges"
 )
-print(f"Attribute Sample: {list(node_attributes.items())[:5]}\n")
+# Print the unique attribute values for the selected nodes and their counts
+unique_attributes = sorted(set(node_attributes.values()))
+print(f"Unique attribute values ({len(unique_attributes)}): {unique_attributes}")
+print(f"Attribute value counts: { {value: list(node_attributes.values()).count(value) for value in unique_attributes} }\n")
 
 # 2. Run AFCMiner Algorithm
 afmc, afc = afc_miner_optimal(nodes, edges, node_attributes)

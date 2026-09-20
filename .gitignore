@@ -5,7 +5,7 @@ myenv/
 .env
 
 # Private project notes
-PERSONAL_PROJECT_NOTES.md
+athi/
 
 # Python virtual environments
 .venv/
