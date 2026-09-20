@@ -1,5 +1,5 @@
 from collections import defaultdict
-from FCA import ConceptBuilder
+from FCA_bitwise import ConceptBuilder
 #the fairness check is done as given in the paper except using B we used the modified adjacency matrix
 #because B is defined differently while explaining and AFCMiner algorithm and here as different 
 #so in program we cant use the same variable for different casses so instead of that we uses modified adjacency matrix
@@ -30,11 +30,19 @@ def AFCMiner(V,node_attribute_set,R):
     #res is the variable that stores all the absolute fair clique
     res=[]
     attributes=set(node_attribute_set)-set(V)
+    
     #creating the incidence matrix
     Matrix=defaultdict(lambda:defaultdict(int))
+    #creating self loop
+    for v in V:
+        Matrix[v][v] = 1
     for i,j in R:
         Matrix[i][j]=1
+        if j in V:
+            Matrix[j][i]=1 
     concepts=ConceptBuilder(Matrix,V,node_attribute_set)
+    print(len(concepts))
+    cliques=[]
     for X1,X2,B in concepts:
         if X1==X2:
             if FairnessFilter(X1,X2,attributes,Matrix):
@@ -60,4 +68,5 @@ def AFCMiner(V,node_attribute_set,R):
                     if FairnessFilter(sub,sub,attributes,Matrix):
                         cur_maxi.append(sub)
                         res.append(sub)
-
+    print(len(res))
+    return res

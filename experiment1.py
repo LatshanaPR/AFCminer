@@ -12,12 +12,10 @@ The experiments will use nested Facebook100 subgraphs with these sizes:
 
 from collections import Counter
 from time import perf_counter
-
-from bk import bk_afc_miner
 from experiment_utils import SUBSET_SIZES, load_top_1500_graph
-from optimal_afc import afc_miner_optimal
 from preprocess_fb100 import load_facebook100_data, split_preprocessed_data
-
+from AFCMiner import AFCMiner
+from bk import BKMiner
 
 # The paper first describes the attribute distribution before running the
 # algorithm. We use the same preprocessing function as run_fb.py, but request
@@ -66,96 +64,64 @@ def print_table_ii():
 	print("-" * 48)
 
 
-def print_table_iv():
-	"""Print AFMC counts and runtimes for the gender experiments."""
-	ordered_nodes, all_edges, all_attributes = load_top_1500_graph()
-	result_rows = []
-	runtime_rows = []
+def run_experiment_1():
+    result_rows = []
+    runtime_rows = []
 
-	for index, subset_size in enumerate(SUBSET_SIZES, start=1):
-		# Use the same nested node set and induced edges for both algorithms.
-		subset_nodes = ordered_nodes[:subset_size]
-		subset_node_set = set(subset_nodes)
-		subset_edges = [
-			(first_node, second_node)
-			for first_node, second_node in all_edges
-			if first_node in subset_node_set and second_node in subset_node_set
-		]
-		subset_attributes = {
-			node: all_attributes[node]
-			for node in subset_nodes
-		}
-		if index == 1:
-			print(
-				f"Running SubSet {index} ({subset_size} nodes): "
-				"Bron-Kerbosch and AFCMiner...",
-				flush=True,
-			)
-		else:
-			print(
-				f"Running SubSet {index} ({subset_size} nodes): AFCMiner...",
-				flush=True,
-			)
+    for index, subset_size in enumerate(SUBSET_SIZES, start=1):
+        print(f"\nLoading SubSet {index} ({subset_size} nodes)...", flush=True)
 
-		# Run and time Bron-Kerbosch only on SubSet 1 because larger baseline
-		# runs overload the laptop.
-		if index == 1:
-			start_time = perf_counter()
-			baseline_afmc, _ = bk_afc_miner(
-				subset_nodes,
-				subset_edges,
-				subset_attributes,
-				include_afc=False,
-			)
-			baseline_time_ms = (perf_counter() - start_time) * 1000
-			baseline_count = len(baseline_afmc)
-		else:
-			baseline_time_ms = None
-			baseline_count = "-"
+        # 1. Load data directly matching the image structure
+        nodes, attribute_columns, combined_data = load_facebook100_data(
+            mat_filename=DATASET_FILE,
+            folder_name=DATASET_FOLDER,
+            max_nodes=subset_size,
+            attribute_type="gender",
+            granularity=2
+        )
 
-		# Run and time AFCMiner for every subset. Sub-clique generation is
-		# disabled because these tables report AFMC results only.
-		start_time = perf_counter()
-		afcminer_afmc, _ = afc_miner_optimal(
-			subset_nodes,
-			subset_edges,
-			subset_attributes,
-			include_afc=False,
-		)
-		afcminer_time_ms = (perf_counter() - start_time) * 1000
+        # Convert nodes to set or list as required by your signatures
+        V = nodes
+        node_attribute_set = attribute_columns
+        R = combined_data
 
-		runtime_rows.append(
-			(index, baseline_time_ms, afcminer_time_ms)
-		)
-		result_rows.append((index, baseline_count, len(afcminer_afmc)))
+        # 2. Run Bron-Kerbosch baseline (only on SubSet 1 to prevent overload)
+        print("  Running BKMiner...", flush=True)
+        start_time = perf_counter()
+        baseline_afmc = BKMiner(V, node_attribute_set, R)
+        baseline_time_ms = (perf_counter() - start_time) * 1000
+        baseline_count = len(baseline_afmc)
+        
 
-	print("\nTABLE IV")
-	print("EXPERIMENT-1. DIFFERENT SCALES OF NODES WITH GENDER")
-	print("====================================================")
-	print(f"\n{'Dataset':<14} {'Baseline Methods':>18} {'AFCMiner':>12}")
-	print(f"{'':<14} {'AFMC':>18} {'AFMC':>12}")
-	print("-" * 48)
-	for index, baseline_count, afcminer_count in result_rows:
-		print(
-			f"SubSet {index:<7} {str(baseline_count):>18} "
-			f"{afcminer_count:>12}"
-		)
-	print("-" * 48)
+        # 3. Run AFCMiner for all subsets
+        print("  Running AFCMiner...", flush=True)
+        start_time = perf_counter()
+        afcminer_afmc = AFCMiner(V, node_attribute_set, R)
+        afcminer_time_ms = (perf_counter() - start_time) * 1000
+        afcminer_count = len(afcminer_afmc)
 
-	print("\nTABLE V")
-	print("EXPERIMENT-1. RUNNING TIME COMPARISON")
-	print("=====================================")
-	print(f"\n{'Dataset':<14} {'BK (ms)':>12} {'AFCMiner (ms)':>18}")
-	print("-" * 48)
-	for index, baseline_time_ms, afcminer_time_ms in runtime_rows:
-		baseline_text = (
-			f"{baseline_time_ms:.2f}" if baseline_time_ms is not None else "-"
-		)
-		print(
-			f"SubSet {index:<7} {baseline_text:>12} "
-			f"{afcminer_time_ms:>18.2f}"
-		)
-	print("-" * 48)
+        runtime_rows.append((index, baseline_time_ms, afcminer_time_ms))
+        result_rows.append((index, baseline_count, afcminer_count))
+
+    # --- Output Tables ---
+    print("\nTABLE IV")
+    print("EXPERIMENT-1. DIFFERENT SCALES OF NODES WITH GENDER")
+    print("====================================================")
+    print(f"{'Dataset':<14} {'Baseline (BK)':>18} {'AFCMiner':>12}")
+    print("-" * 48)
+    for idx, b_cnt, a_cnt in result_rows:
+        print(f"SubSet {idx:<7} {str(b_cnt):>18} {a_cnt:>12}")
+    print("-" * 48)
+
+    print("\nTABLE V")
+    print("EXPERIMENT-1. RUNNING TIME COMPARISON")
+    print("=====================================")
+    print(f"{'Dataset':<14} {'BK (ms)':>12} {'AFCMiner (ms)':>18}")
+    print("-" * 48)
+    for idx, b_time, a_time in runtime_rows:
+        b_str = f"{b_time:.2f}" if b_time is not None else "-"
+        print(f"SubSet {idx:<7} {b_str:>12} {a_time:>18.2f}")
+    print("-" * 48)
 
 def load_attributes_for_table_iii():
 	"""Load every supported attribute category for the top-1500 input."""
@@ -220,4 +186,4 @@ if __name__ == "__main__":
 
 	# Table IV: AFMC counts for the gender-based experiment across subsets.
 	# Table V: runtime comparison between BK and AFCMiner for the same setup.
-	print_table_iv()
+	run_experiment_1()

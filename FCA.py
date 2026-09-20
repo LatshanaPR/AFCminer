@@ -7,23 +7,25 @@ for example if there are two nodes and each node has two attributes gender(male,
 
 This is how the matrix is represented in a dictionary of dictionary
 '''
-
+def count_bits(n):
+    return n.bit_count()
 #the following fucntion implementation is not directly given in the paper so its implemented with the idea of intent
-def find_intent(ori_intent,extent,C):
-    to_remove=set()
-    for j in extent:
-        for i in ori_intent:
-            if C[i][j]==0:
-                to_remove.add(i)
-    return ori_intent-to_remove
+def derive_intent(extent, candidate_intents, C,NEIGHBORS):
+    if not extent:
+        return candidate_intents
+    # Bitwise intersection in C instead of double Python loops
+    res = candidate_intents
+    for x in extent:
+        res = res & NEIGHBORS[x]
+    return res
 #the following function is not directly given in the paper so its implemented with the idea of extent
-def find_extent(intent,ori_extent,C):
-    to_remove=set()
-    for i in intent:
-        for j in ori_extent:
-            if C[i][j]==0:
-                to_remove.add(j)
-    return ori_extent-to_remove
+def derive_extent(intent, candidate_extents, C,NEIGHBORS):
+    if not intent:
+        return candidate_extents
+    res = candidate_extents
+    for b in intent:
+        res = res & NEIGHBORS[b]
+    return res
 #the following function iteratively finds the next valid concept from the previous basic concept
 #it takes the initial basic conocept whose extent is of single node for example node 2's extent was {1,2,3}
 #so now this function takes the intersection of two nodes extent then now it explores two nodes
@@ -36,27 +38,52 @@ def find_extent(intent,ori_extent,C):
 #But not all the combination is explored as two nodes may never share any node and the path can be pruned
 #for example if 1,2 doesnt have common node then 1,2,3 and 1,2,4 cant exist and as we use conceptset as visited 
 #we wont explore same path second time
-def AddConcept(C,conceptset,V,attributes):
+def AddConcept(C,conceptset,V,attributes,NEIGHBORS):
     #this cur is the same variable conceptset' in the paper and this stores the current level of nodes
     cur_concept=set(conceptset)
     #the nex is the same variable conceptset'' in the paper and is used to store next level of exploration
     next_concept=set()
     #using two loops to get pair of concepts from the cur
+    count=0
     while cur_concept:
-        for x1,y1,B1 in cur_concept:
-            for x2,y2,B2 in cur_concept:
-                if (x1,y1)==(x2,y2):continue
-                y=y1 & y2
-                if not y:continue
-                full_objects=V
-                extent=frozenset(find_extent(y,full_objects,C))
-                intent=frozenset(find_intent(full_objects,extent,C))
-                B=frozenset(find_extent(intent,attributes,C))
-                if (extent,intent,B) not in conceptset:
-                    conceptset.add((extent,intent,B))
-                    next_concept.add((extent,intent,B))
+        print(f"Level {count}: {len(cur_concept)} concepts")
+        cur_list = list(cur_concept)
+        #the following is done to optimize the run time
+        node_to_concepts={}
+        for idx, concept in enumerate(cur_list):
+            _,y,_=concept
+            for node in y:
+                if node not in node_to_concepts:
+                    node_to_concepts[node]=[]
+                node_to_concepts[node].append(idx)
+        candidate_pairs = set()
+        for node,indices in node_to_concepts.items():
+            n_len=len(indices)
+            for i in range(n_len):
+                idx1=indices[i]
+                for j in range(i + 1, n_len):
+                    idx2=indices[j]
+                    if idx1<idx2:
+                        candidate_pairs.add((idx1, idx2))
+                    else:
+                        candidate_pairs.add((idx2, idx1))
+        for idx1, idx2 in candidate_pairs:
+            x1, y1, B1 = cur_list[idx1]
+            x2, y2, B2 = cur_list[idx2]
+            if y1 <= y2 or y2 <= y1:continue
+            y=y1 & y2
+            if len(y)<2:continue
+            full_objects=V
+            extent = frozenset(derive_extent(y, full_objects, C,NEIGHBORS))
+            intent = frozenset(derive_intent(extent, full_objects, C,NEIGHBORS))
+            
+            B = frozenset(derive_intent(extent, attributes, C,NEIGHBORS))
+            if (extent,intent,B) not in conceptset:
+                conceptset.add((extent,intent,B))
+                next_concept.add((extent,intent,B))
         cur_concept=next_concept
         next_concept=set()
+        count+=1
     return conceptset
 #this function is used to find the initial basic concept
 #lets understand this with an example now a graph has four nodes 0 1 2 3
@@ -67,7 +94,7 @@ def AddConcept(C,conceptset,V,attributes):
 #[1 1 0 1]
 #for j=2 we will first find the extent of 2 which is just the nodes 2 is connected to so extent={1,2,3}
 #now then we find the intent for {1,2,3} which is {2} so one of the basic concept is ({1,2,3},{2})
-def BasicConcept(C,V,attributes):
+def BasicConcept(C,V,attributes,NEIGHBORS):
     conceptset=set()
     full_objects=V
     
@@ -77,22 +104,26 @@ def BasicConcept(C,V,attributes):
     # In the paper cij refers to extent of either i or j so its implemented with single loop but still its V^2 because
     # we are finding extent which time complexity is V.  
     for j in full_objects:
-        extent=frozenset(find_extent({j},full_objects,C))
-        intent=frozenset(find_intent(full_objects,extent,C))
+        intent = frozenset(derive_intent({j}, full_objects, C,NEIGHBORS))
+        extent = frozenset(derive_extent(intent, full_objects, C,NEIGHBORS))
         #B is just used to notate whether a particular set of nodes have same attribute which is just used visually in lattice
         #for example if node 1,2,3 is the intent and its all male then B is {M} if all those have different attribute value
         #then its empty or null as represented in the paper. 
-        B=frozenset(find_extent(intent,attributes,C))
+        B = frozenset(derive_intent(extent, attributes, C,NEIGHBORS))
         if (extent,intent,B) not in conceptset:
             conceptset.add((extent,intent,B))
     return conceptset
 
 
 def ConceptBuilder(Matrix,V,node_attribute_set):
+    NEIGHBORS = {
+    u: frozenset(v for v in Matrix[u] if Matrix[u][v] == 1)
+    for u in Matrix
+    }
     #V and node_attribute_set is being used to implement the attributed concept generation from AFCMiner
     V=set(V)
-    attributes=node_attribute_set-V
     node_attribute_set=set(node_attribute_set)
-    conceptset=BasicConcept(Matrix,V,attributes)
-    AddConcept(Matrix,conceptset,V,attributes)
+    attributes=node_attribute_set-V 
+    conceptset=BasicConcept(Matrix,V,attributes,NEIGHBORS)
+    AddConcept(Matrix,conceptset,V,attributes,NEIGHBORS)
     return conceptset

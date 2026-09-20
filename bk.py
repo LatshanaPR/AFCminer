@@ -1,86 +1,70 @@
-import itertools
-from backup_afc import fairness_filter, attributed_concepts_derivation, build_formal_context
-from preprocess_fb100 import load_facebook100_data, split_preprocessed_data
+from collections import defaultdict
+from AFCMiner import FairnessFilter, AttributedConceptsDerivation
 
-# ========================================================
-# BRON-KERBOSCH WITH PIVOTING (Algorithm 4 Baseline)
-# ========================================================
-def bron_kerbosch_pivot(R, P, X, adj, maximal_cliques):
-    """
-    Standard recursive Bron-Kerbosch algorithm with pivoting 
-    to enumerate all maximal cliques in the graph.
-    """
-    if not P and not X:
-        maximal_cliques.append(R)
-        return
-
-    # Choose pivot u in P union X to maximize |P ∩ N(u)|
-    u = next(iter(P | X))
-    
-    # Iterate over candidates not connected to the pivot
-    for v in list(P - adj[u]):
-        bron_kerbosch_pivot(
-            R | {v},
-            P & adj[v],
-            X & adj[v],
-            adj,
-            maximal_cliques
-        )
-        P.remove(v)
-        X.add(v)
-
-
-def bk_afc_miner(nodes, edges, node_attributes, include_afc=True):
-    """
-    Algorithm 4: BK Algorithm for Mining Absolute Fair Cliques
-    Serves as the ground-truth baseline to verify AFCMiner.
-    """
-    zeta_afmc = set()
-    zeta_afc = set()
-
-    # Build adjacency dictionary
-    adj, node_attributes, a_val = build_formal_context(nodes, edges, node_attributes)
-    
-    # Adjacency for BK must NOT include self-loops in neighbor lookups
-    adj_no_self = {v: adj[v] - {v} for v in nodes}
-
-    # Step 1-10: Find all maximal cliques using Bron-Kerbosch
+def BronKerboschIterative(V_set, adj):
     maximal_cliques = []
-    bron_kerbosch_pivot(set(), set(nodes), set(), adj_no_self, maximal_cliques)
+    stack = [(set(), set(V_set), set())]
 
-    # Step 12-18: Filter maximal cliques and optionally derive sub-cliques.
-    # Table IV requests only AFMC counts, so it disables the expensive power
-    # set expansion for unfair maximal cliques.
-    for c in maximal_cliques:
-        if fairness_filter(c, node_attributes, a_val):
-            clique_frozen = tuple(sorted(list(c)))
-            zeta_afmc.add(clique_frozen)
-            zeta_afc.add(clique_frozen)
-        elif include_afc:
-            sub_cliques = attributed_concepts_derivation(c)
-            for sub_c in sub_cliques:
-                if fairness_filter(sub_c, node_attributes, a_val):
-                    zeta_afc.add(tuple(sorted(list(sub_c))))
+    while stack:
+        R, P, X = stack.pop()
 
-    return zeta_afmc, zeta_afc
+        if not P and not X:
+            if R:
+                maximal_cliques.append(R)
+            continue
 
-if __name__ == "__main__":
-    nodes, attribute_columns, combined_data = load_facebook100_data(
-        mat_filename="American75.mat",
-        folder_name="facebook100",
-        max_nodes=250,
-        attribute_type="gender"
-    )
-    edges, node_attributes = split_preprocessed_data(nodes, combined_data)
+        if not P:
+            continue
 
-    # Ground truth from BK
-    bk_afmc, bk_afc = bk_afc_miner(nodes, edges, node_attributes)
+        pivot = max(P | X, key=lambda u: len(P & adj[u]))
+        candidates = list(P - adj[pivot])
+
+        for v in candidates:
+            stack.append((R | {v}, P & adj[v], X & adj[v]))
+            P.remove(v)
+            X.add(v)
+
+    return maximal_cliques
+
+
+def BKMiner(V, node_attribute_set, R_input):
+    res = []
+    V_set = set(V)
+    attributes = set(node_attribute_set) - V_set
     
-    print(f"--- Bron-Kerbosch (Ground Truth) ---")
-    print(f"Maximal Fair Cliques: {len(bk_afmc)}")
-    print(f"Total Fair Cliques:   {len(bk_afc)}")
+    Matrix = defaultdict(lambda: defaultdict(int))
+    adj = defaultdict(set)
     
-    # Check max size found by BK
-    if bk_afc:
-        max_len = max(len(c) for c in bk_afc)
-        print(f"Largest Fair Clique Size: {max_len}")
+    # 1. Self-loops for all nodes
+    for v in V_set:
+        Matrix[v][v] = 1
+        
+    # 2. Build graph edges and attribute mappings
+    for i, j in R_input:
+        Matrix[i][j] = 1
+        if i in V_set and j in V_set:
+            Matrix[j][i] = 1
+            adj[i].add(j)
+            adj[j].add(i)
+            
+    # 3. Discover maximal cliques
+    maximal_cliques = BronKerboschIterative(V_set, adj)
+    print(len(maximal_cliques))
+    for clique in maximal_cliques:
+        if FairnessFilter(clique, clique, attributes, Matrix):
+            res.append(clique)
+        else:
+            powerset = AttributedConceptsDerivation(clique)
+            powerset.sort(key=lambda x: len(x), reverse=True)
+            
+            cur_maxi = []
+            for sub in powerset:
+                if not sub:
+                    continue
+                if any((cur & sub) == sub for cur in cur_maxi):
+                    continue
+                if FairnessFilter(sub, sub, attributes, Matrix):
+                    cur_maxi.append(sub)
+                    res.append(sub)
+    print(len(res))               
+    return res

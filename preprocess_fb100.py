@@ -8,7 +8,7 @@ def load_facebook100_data(
     mat_filename="American75.mat",
     folder_name="facebook100",
     max_nodes=250,
-    attribute_type="gender",
+    attribute_type="multidim_gender_year",
     granularity=2  # Number of bins for multivalued categories (2V, 3V, 4V)
 ):
     """
@@ -169,6 +169,7 @@ def load_facebook100_data(
     # 5. Combine graph edges and object-to-attribute records in one list.
     # Graph edges remain two node IDs; attribute records are (node, value).
     combined_data = edges + list(node_attributes.items())
+    
 
     return nodes, attribute_columns, combined_data
 
