@@ -81,7 +81,10 @@ def load_facebook100_data(
     edges = [(f"v{u}", f"v{v}") for u, v in subG.edges()]
 
 
-    # 3. Binning & Mapping logic (Table III & Table VI in paper)
+    # 3. Convert the selected raw column into the attribute values used by
+    # the experiments. These values are kept in their natural data types:
+    # gender uses strings, year uses integers, and multidimensional values use
+    # (gender, year) tuples.
     raw_vals = {}
     for node_idx in subG.nodes():
         node_str = f"v{node_idx}"
@@ -91,14 +94,14 @@ def load_facebook100_data(
         # -------------------------------------------------------------
         if attribute_type == "status":
             val = local_info[node_idx, 0]
-            node_attributes[node_str] = "Undergrad" if val == 1 else "Other_Status"
+            raw_vals[node_str] = "undergrad" if val == 1 else "other_status"
 
         # -------------------------------------------------------------
         # Category 1: Gender (Female = 1, Male = 2)
         # -------------------------------------------------------------
         elif attribute_type == "gender":
             val = local_info[node_idx, 1]
-            raw_vals[node_str] = "Female" if val == 1 else "Male"
+            raw_vals[node_str] = "female" if val == 1 else "male"
 
         # -------------------------------------------------------------
         # Category 2: Major / Field (Top Major vs Others - 2V / 3V / 4V)
@@ -114,10 +117,10 @@ def load_facebook100_data(
             val = int(local_info[node_idx, 5])
             if granularity == 2:
                 # Binary: Fresh/Soph (2008/2009) vs Junior/Senior (2006/2007)
-                raw_vals[node_str] = "Junior_Senior" if val in [2006, 2007] else "Fresh_Soph"
+                raw_vals[node_str] = "junior_senior" if val in [2006, 2007] else "fresh_soph"
             else:
-                # 4-Valued: 2006, 2007, 2008, 2009
-                raw_vals[node_str] = f"Class_{val}"
+                # Multivalued: preserve the original year values.
+                raw_vals[node_str] = val
 
         # -------------------------------------------------------------
         # Category 4: Dorm / Residence
@@ -129,9 +132,9 @@ def load_facebook100_data(
         # Multi-Dimensional: Gender x Class Year (2D fairness)
         # -------------------------------------------------------------
         elif attribute_type == "multidim_gender_year":
-            g = "F" if local_info[node_idx, 1] == 1 else "M"
-            y = "Upper" if local_info[node_idx, 5] in [2006, 2007] else "Lower"
-            raw_vals[node_str] = f"{g}_{y}"  # Forms 4 compound classes: F_Upper, F_Lower, M_Upper, M_Lower
+            gender = "female" if local_info[node_idx, 1] == 1 else "male"
+            year = int(local_info[node_idx, 5])
+            raw_vals[node_str] = (gender, year)
 
     # Dynamic frequency binning for high-cardinality fields (Major / Dorm)
     if attribute_type in ["major", "dorm"]:
@@ -147,4 +150,39 @@ def load_facebook100_data(
     else:
         node_attributes = raw_vals
 
-    return nodes, edges, node_attributes
+    # 4. Build the paper-style attribute column list. It contains the object
+    # columns first, followed by the attribute values used by this experiment.
+    # For the multidimensional case, include the complete gender-year Cartesian
+    # product, including combinations absent from the selected subgraph.
+    if attribute_type == "multidim_gender_year":
+        years = [2006, 2007, 2008, 2009]
+        genders = ["male", "female"]
+        attribute_values = [
+            (gender, year)
+            for year in years
+            for gender in genders
+        ]
+    else:
+        attribute_values = list(dict.fromkeys(node_attributes.values()))
+    attribute_columns = nodes + attribute_values
+
+    # 5. Combine graph edges and object-to-attribute records in one list.
+    # Graph edges remain two node IDs; attribute records are (node, value).
+    combined_data = edges + list(node_attributes.items())
+
+    return nodes, attribute_columns, combined_data
+
+
+def split_preprocessed_data(nodes, combined_data):
+    """Separate graph edges and node attributes from the combined output."""
+    edges = []
+    node_attributes = {}
+
+    for record in combined_data:
+        first, second = record
+        if first in nodes and isinstance(second, str) and second in nodes:
+            edges.append((first, second))
+        else:
+            node_attributes[first] = second
+
+    return edges, node_attributes

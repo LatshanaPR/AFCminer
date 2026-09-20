@@ -1,5 +1,6 @@
 import itertools
 from backup_afc import fairness_filter, attributed_concepts_derivation, build_formal_context
+from preprocess_fb100 import load_facebook100_data, split_preprocessed_data
 
 # ========================================================
 # BRON-KERBOSCH WITH PIVOTING (Algorithm 4 Baseline)
@@ -29,7 +30,7 @@ def bron_kerbosch_pivot(R, P, X, adj, maximal_cliques):
         X.add(v)
 
 
-def bk_afc_miner(nodes, edges, node_attributes):
+def bk_afc_miner(nodes, edges, node_attributes, include_afc=True):
     """
     Algorithm 4: BK Algorithm for Mining Absolute Fair Cliques
     Serves as the ground-truth baseline to verify AFCMiner.
@@ -47,13 +48,15 @@ def bk_afc_miner(nodes, edges, node_attributes):
     maximal_cliques = []
     bron_kerbosch_pivot(set(), set(nodes), set(), adj_no_self, maximal_cliques)
 
-    # Step 12-18: Filter fairness and derive sub-cliques
+    # Step 12-18: Filter maximal cliques and optionally derive sub-cliques.
+    # Table IV requests only AFMC counts, so it disables the expensive power
+    # set expansion for unfair maximal cliques.
     for c in maximal_cliques:
         if fairness_filter(c, node_attributes, a_val):
             clique_frozen = tuple(sorted(list(c)))
             zeta_afmc.add(clique_frozen)
             zeta_afc.add(clique_frozen)
-        else:
+        elif include_afc:
             sub_cliques = attributed_concepts_derivation(c)
             for sub_c in sub_cliques:
                 if fairness_filter(sub_c, node_attributes, a_val):
@@ -62,14 +65,13 @@ def bk_afc_miner(nodes, edges, node_attributes):
     return zeta_afmc, zeta_afc
 
 if __name__ == "__main__":
-    from preprocess_fb100 import load_facebook100_data
-
-    nodes, edges, node_attributes = load_facebook100_data(
+    nodes, attribute_columns, combined_data = load_facebook100_data(
         mat_filename="American75.mat",
         folder_name="facebook100",
         max_nodes=250,
         attribute_type="major"
     )
+    edges, node_attributes = split_preprocessed_data(nodes, combined_data)
 
     # Ground truth from BK
     bk_afmc, bk_afc = bk_afc_miner(nodes, edges, node_attributes)
