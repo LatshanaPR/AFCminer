@@ -7,8 +7,6 @@ for example if there are two nodes and each node has two attributes gender(male,
 
 This is how the matrix is represented in a dictionary of dictionary
 '''
-def count_bits(n):
-    return n.bit_count()
 #the following fucntion implementation is not directly given in the paper so its implemented with the idea of intent
 def derive_intent(extent, candidate_intents, C,NEIGHBORS):
     if not extent:
