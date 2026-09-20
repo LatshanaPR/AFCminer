@@ -1,2 +1,31 @@
 *.dat
 myenv/
+
+# Private environment configuration
+.env
+
+# Private project notes
+athi/
+
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local datasets
+facebook100/
+
+# Generated project outputs
+WFCMiner_14_Week_Gantt.png
+WFCMiner_14_Week_Gantt.pdf
+
+# Local test and experiment output
+outputs/
+results/
+# Python virtual environment
+cliq/

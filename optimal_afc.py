@@ -100,7 +100,7 @@ def derive_fair_subcliques_direct(maximal_clique, node_attributes, a_val):
 # =========================================================================
 # 3. HIGH-PERFORMANCE AFCMINER PIPELINE (Algorithm 1)
 # =========================================================================
-def afc_miner_optimal(nodes, edges, node_attributes):
+def afc_miner_optimal(nodes, edges, node_attributes, include_afc=True):
     """
     Complete high-performance implementation of AFCMiner.
     """
@@ -128,9 +128,15 @@ def afc_miner_optimal(nodes, edges, node_attributes):
                 zeta_afc.add(clique_tuple)
                 is_afmc = True
 
-        # Derive sub-cliques directly
-        derived_fair = derive_fair_subcliques_direct(clique_nodes, node_attributes, a_val)
-        for fair_c in derived_fair:
-            zeta_afc.add(fair_c)
+        # Derive sub-cliques only when the caller requests the complete AFC
+        # result. Table IV requests AFMC counts only and skips this step.
+        if include_afc:
+            derived_fair = derive_fair_subcliques_direct(
+                clique_nodes,
+                node_attributes,
+                a_val,
+            )
+            for fair_c in derived_fair:
+                zeta_afc.add(fair_c)
 
     return zeta_afmc, zeta_afc
