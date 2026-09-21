@@ -13,8 +13,8 @@ The experiments will use nested Facebook100 subgraphs with these sizes:
 from collections import Counter
 from time import perf_counter
 from experiment_utils import SUBSET_SIZES, load_top_1500_graph
-from preprocess_fb100 import load_facebook100_data, split_preprocessed_data
-from optimal import AFCMiner
+from sparse_preprocess import load_facebook100_data, split_preprocessed_data
+from AFCMiner import AFCMiner
 from bk import BKMiner
 
 # The paper first describes the attribute distribution before running the
